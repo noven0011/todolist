@@ -1,26 +1,42 @@
 <?php
-// Inisialisasi array tugas
-$tasks = [
-    ["id" => 1, "title" => "Belajar PHP", "status" => "belum"],
-    ["id" => 2, "title" => "Kerjakan tugas UX", "status" => "selesai"],
-];
+// LANGKAH 1: Mulai session di paling atas
+session_start();
+
+// LANGKAH 2: Inisialisasi tugas dari session atau buat baru jika belum ada
+if (!isset($_SESSION['tasks'])) {
+    $_SESSION['tasks'] = [
+        ["id" => 1, "title" => "Belajar PHP", "status" => "belum"],
+        ["id" => 2, "title" => "Kerjakan tugas UX", "status" => "selesai"],
+    ];
+}
+
+// Gunakan variabel lokal untuk mempermudah pengelolaan
+$tasks = $_SESSION['tasks'];
 
 // Tangani penambahan tugas
 if (isset($_POST['add'])) {
     $title = $_POST['title'];
-    $newId = count($tasks) + 1;
+    // Membuat ID unik berdasarkan timestamp agar tidak duplikat
+    $newId = time(); 
     $tasks[] = ["id" => $newId, "title" => $title, "status" => "belum"];
+    $_SESSION['tasks'] = $tasks; // Simpan perubahan ke session
+    header("Location: " . $_SERVER['PHP_SELF']); // Refresh halaman untuk mencegah resubmit
+    exit();
 }
 
-// Tangani perubahan status tugas
+// Tangani perubahan status tugas (toggle)
 if (isset($_POST['toggle'])) {
     $toggleId = $_POST['toggle'];
     foreach ($tasks as &$task) {
         if ($task['id'] == $toggleId) {
             $task['status'] = $task['status'] === 'belum' ? 'selesai' : 'belum';
+            break; // Hentikan loop setelah ditemukan
         }
     }
     unset($task);
+    $_SESSION['tasks'] = $tasks; // Simpan perubahan ke session
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
 }
 
 // Tangani penghapusan tugas
@@ -29,6 +45,9 @@ if (isset($_POST['delete'])) {
     $tasks = array_filter($tasks, function ($task) use ($deleteId) {
         return $task['id'] != $deleteId;
     });
+    $_SESSION['tasks'] = $tasks; // Simpan perubahan ke session
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
 }
 
 // Tangani pengeditan tugas
@@ -44,17 +63,20 @@ if (isset($_POST['update'])) {
     foreach ($tasks as &$task) {
         if ($task['id'] == $updateId) {
             $task['title'] = $newTitle;
+            break; // Hentikan loop setelah ditemukan
         }
     }
     unset($task);
+    $_SESSION['tasks'] = $tasks; // Simpan perubahan ke session
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>To-Do List - PHP</title>
+    <title>To-Do List</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -65,27 +87,10 @@ if (isset($_POST['update'])) {
             align-items: center;
             justify-content: center;
         }
-
-        .todo-container {
-            width: 100%;
-            max-width: 600px;
-        }
-
-        .card {
-            border: none;
-            border-radius: 1rem;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .card-title {
-            font-weight: 600;
-            color: #2d3436;
-        }
-
-        input[type="text"] {
-            border-radius: 0.5rem;
-        }
-
+        .todo-container { width: 100%; max-width: 600px; }
+        .card { border: none; border-radius: 1rem; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); }
+        .card-title { font-weight: 600; color: #2d3436; }
+        input[type="text"] { border-radius: 0.5rem; }
         .list-group-item {
             border: none;
             border-radius: 0.5rem;
@@ -95,16 +100,8 @@ if (isset($_POST['update'])) {
             align-items: center;
             justify-content: space-between;
         }
-
-        .form-inline {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 5px;
-        }
+        .form-inline { display: flex; gap: 10px; }
+        .btn-group { display: flex; gap: 5px; }
     </style>
 </head>
 <body>
@@ -121,38 +118,43 @@ if (isset($_POST['update'])) {
 
         <!-- Daftar Tugas -->
         <ul class="list-group">
-            <?php foreach ($tasks as $task): ?>
-                <li class="list-group-item">
-                    <?php if ($editId == $task['id']): ?>
-                        <!-- Form Edit -->
-                        <form method="POST" class="form-inline w-100">
-                            <input type="hidden" name="update_id" value="<?= $task['id']; ?>">
-                            <input type="text" name="new_title" class="form-control flex-grow-1" value="<?= htmlspecialchars($task['title']); ?>" required>
-                            <button type="submit" name="update" class="btn btn-warning">Simpan</button>
-                        </form>
-                    <?php else: ?>
-                        <form method="POST" class="d-flex align-items-center flex-grow-1">
-                            <input class="form-check-input me-2" type="checkbox" name="toggle" value="<?= $task['id']; ?>"
-                                   onchange="this.form.submit()" <?= $task['status'] === 'selesai' ? 'checked' : '' ?>>
-                            <span class="<?= $task['status'] === 'selesai' ? 'text-decoration-line-through' : '' ?>">
-                                <?= htmlspecialchars($task['title']); ?>
-                            </span>
-                        </form>
+            <?php if (empty($tasks)): ?>
+                <li class="list-group-item text-center text-muted">Tidak ada tugas.</li>
+            <?php else: ?>
+                <?php foreach ($tasks as $task): ?>
+                    <li class="list-group-item">
+                        <?php if ($editId == $task['id']): ?>
+                            <!-- Form Edit -->
+                            <form method="POST" class="form-inline w-100">
+                                <input type="hidden" name="update_id" value="<?= $task['id']; ?>">
+                                <input type="text" name="new_title" class="form-control flex-grow-1" value="<?= htmlspecialchars($task['title']); ?>" required autofocus>
+                                <button type="submit" name="update" class="btn btn-warning">Simpan</button>
+                            </form>
+                        <?php else: ?>
+                            <!-- Tampilan Normal -->
+                            <form method="POST" class="d-flex align-items-center flex-grow-1">
+                                <input type="hidden" name="toggle" value="<?= $task['id']; ?>">
+                                <input class="form-check-input me-3" type="checkbox" onchange="this.form.submit()" <?= $task['status'] === 'selesai' ? 'checked' : '' ?>>
+                                <span class="<?= $task['status'] === 'selesai' ? 'text-decoration-line-through text-muted' : '' ?>">
+                                    <?= htmlspecialchars($task['title']); ?>
+                                </span>
+                            </form>
 
-                        <!-- Tombol Aksi -->
-                        <div class="btn-group">
-                            <form method="POST">
-                                <input type="hidden" name="edit" value="<?= $task['id']; ?>">
-                                <button type="submit" class="btn btn-outline-secondary btn-sm">Edit</button>
-                            </form>
-                            <form method="POST">
-                                <input type="hidden" name="delete" value="<?= $task['id']; ?>">
-                                <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
-                            </form>
-                        </div>
-                    <?php endif; ?>
-                </li>
-            <?php endforeach; ?>
+                            <!-- Tombol Aksi -->
+                            <div class="btn-group">
+                                <form method="POST">
+                                    <input type="hidden" name="edit" value="<?= $task['id']; ?>">
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">Edit</button>
+                                </form>
+                                <form method="POST">
+                                    <input type="hidden" name="delete" value="<?= $task['id']; ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
+                                </form>
+                            </div>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </ul>
     </div>
 </div>
